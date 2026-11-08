@@ -288,7 +288,7 @@ controls.dampingFactor = 0.06;
 
 // Allow zooming
 controls.enableZoom = true;
-controls.minDistance = 55;
+controls.minDistance = 5;
 controls.maxDistance = 190;
 
 // Allow moving around the park
@@ -4015,77 +4015,52 @@ if (gender === 'female') {
   visitor.add(skirt);
 }
 
-  // Name label
-  const canvas = document.createElement('canvas');
-  canvas.width = 1024;
-  canvas.height = 128;
+  // ==========================================
+// EXTRA LARGE AVATAR NAME LABEL
+// ==========================================
 
-  const ctx = canvas.getContext('2d');
-  ctx.fillStyle = 'rgba(255, 248, 250, 0.92)';
-  ctx.roundRect(10, 10, 1004, 108, 30);
-  ctx.fill();
+const canvas = document.createElement('canvas');
+canvas.width = 1024;
+canvas.height = 256;
 
-  let fontSize = 64;
-  do {
-    ctx.font = `bold ${fontSize}px Arial`;
-    fontSize -= 2;
-  } while (ctx.measureText(name).width > 950 && fontSize > 16);
+const ctx = canvas.getContext('2d');
 
-  ctx.font = `bold ${fontSize}px Arial`;
-  ctx.fillStyle = '#80566b';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(name, 512, 64, 950);
+// Dark purple background
+ctx.fillStyle = 'rgba(35, 12, 45, 0.95)';
+ctx.beginPath();
+ctx.roundRect(10, 10, 1004, 236, 45);
+ctx.fill();
 
-  const texture = new THREE.CanvasTexture(canvas);
-  const label = new THREE.Sprite(
-    new THREE.SpriteMaterial({
-      map: texture,
-      transparent: true
-    })
-  );
+// Thick white border
+ctx.strokeStyle = '#ffffff';
+ctx.lineWidth = 10;
+ctx.stroke();
 
-  label.scale.set(3.2, 0.4, 1);
-  label.position.y = 2.65;
-  visitor.add(label);
-  // Cyan arrow above the visitor
-// Large bright cyan arrow above visitor
-// Extra large bright cyan arrow
-// HUGE NEON CYAN DOWNWARD ARROW
-const arrow = new THREE.Group();
+// Large bold white name
+ctx.font = 'bold 180px Arial';
+ctx.fillStyle = '#ffffff';
+ctx.textAlign = 'center';
+ctx.textBaseline = 'middle';
+ctx.shadowColor = '#000000';
+ctx.shadowBlur = 12;
+ctx.fillText(name, 512, 128, 950);
 
-const arrowMaterial = new THREE.MeshBasicMaterial({
-  color: 0x006B6B,
-emissive: 0x006B6B,
-emissiveIntensity: 0.5,
-  toneMapped: false,
-  depthTest: false,
-  depthWrite: false
-});
+const texture = new THREE.CanvasTexture(canvas);
+texture.colorSpace = THREE.SRGBColorSpace;
 
-// Very large arrow shaft
-const arrowShaft = new THREE.Mesh(
-  new THREE.CylinderGeometry(0.35, 0.35, 3.5, 24),
-  arrowMaterial
+const label = new THREE.Sprite(
+  new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false
+  })
 );
-arrowShaft.position.y = 1.75;
-arrow.add(arrowShaft);
 
-// Extra large arrow head
-const arrowHead = new THREE.Mesh(
-  new THREE.ConeGeometry(1.5, 2.5, 24),
-  arrowMaterial
-);
-arrowHead.rotation.z = Math.PI;
-arrowHead.position.y = -1.0;
-arrow.add(arrowHead);
-
-arrow.traverse(child => {
-  child.renderOrder = 999;
-});
-
-arrow.position.y = 7.0;
-visitor.add(arrow);
+// VERY LARGE DISPLAY SIZE
+label.scale.set(16, 4, 1);
+label.position.y = 5;
+visitor.add(label);
 
   visitor.traverse(child => {
     if (child.isMesh) child.castShadow = true;
