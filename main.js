@@ -160,31 +160,94 @@ onlineCount.style.pointerEvents = 'none';
 onlineCount.textContent = '● 0 Online';
 
 container.appendChild(onlineCount);
-// REALTIME ONLINE VISITOR COUNT
+// MULTIPLAYER PLAYER DATA
+const visitorId = crypto.randomUUID();
+const remotePlayers = new Map();
+let visitorCharacter = null;
+let currentVisitorName = '';
+let currentVisitorGender = '';
+let lastPlayerBroadcast = 0;
+
+// REALTIME ONLINE VISITOR COUNT + MULTIPLAYER
 const onlineChannel = supabase.channel('sakura-park-online', {
   config: {
     presence: {
-      key: crypto.randomUUID()
+      key: visitorId
     }
   }
 });
 
-onlineChannel
-  .on('presence', { event: 'sync' }, () => {
-    const state = onlineChannel.presenceState();
+// RECEIVE OTHER PLAYERS' MOVEMENT
+onlineChannel.on('broadcast', { event: 'player-move' }, ({ payload }) => {
+  if (!payload || payload.id === visitorId) return;
 
-    const totalOnline = Object.values(state)
-      .reduce((total, visitors) => total + visitors.length, 0);
+  let remote = remotePlayers.get(payload.id);
 
-    onlineCount.textContent = `● ${totalOnline} Online`;
-  })
-  .subscribe(async (status) => {
-    if (status === 'SUBSCRIBED') {
-      await onlineChannel.track({
-        online_at: new Date().toISOString()
-      });
+  if (!remote) {
+    remote = createVisitorCharacter(payload.name, payload.gender);
+    remotePlayers.set(payload.id, remote);
+  }
+
+  remote.userData.targetPosition = new THREE.Vector3(
+  payload.x,
+  payload.y,
+  payload.z
+);
+  remote.userData.targetRotation = payload.rotation;
+});
+
+// UPDATE ONLINE PLAYERS
+onlineChannel.on('presence', { event: 'sync' }, () => {
+  const state = onlineChannel.presenceState();
+
+  const totalOnline = Object.values(state)
+    .reduce((total, visitors) => total + visitors.length, 0);
+
+  onlineCount.textContent = `● ${totalOnline} Online`;
+
+  Object.entries(state).forEach(([id, visitors]) => {
+    if (id === visitorId) return;
+
+    const data = visitors[visitors.length - 1];
+
+    if (!data.name || !data.gender) return;
+
+    let remote = remotePlayers.get(id);
+
+    if (!remote) {
+      remote = createVisitorCharacter(data.name, data.gender);
+      remotePlayers.set(id, remote);
+    }
+
+    remote.userData.targetPosition = new THREE.Vector3(
+  data.x ?? 0,
+  data.y ?? 0,
+  data.z ?? 0
+);
+   remote.userData.targetRotation = data.rotation ?? 0;
+  });
+
+  remotePlayers.forEach((avatar, id) => {
+    if (!state[id]) {
+      scene.remove(avatar);
+      remotePlayers.delete(id);
     }
   });
+});
+
+// CONNECT TO SUPABASE
+onlineChannel.subscribe(async (status) => {
+  if (status === 'SUBSCRIBED') {
+    await onlineChannel.track({
+      id: visitorId,
+      name: currentVisitorName,
+      gender: currentVisitorGender,
+      online_at: new Date().toISOString()
+    });
+  }
+});
+
+
 // ------------------------------------------
 // SAKURA WISH BOARD DISPLAY
 // ------------------------------------------
@@ -4144,16 +4207,16 @@ const movementKeys = {
 };
 
 window.addEventListener('keydown', event => {
-  if (event.key.toLowerCase() === 'w' || event.key === 'ArrowUp')
+  if ((event.key || '').toLowerCase() === 'w' || event.key === 'ArrowUp')
     movementKeys.forward = true;
 
-  if (event.key.toLowerCase() === 's' || event.key === 'ArrowDown')
+  if ((event.key || '').toLowerCase() === 's' || event.key === 'ArrowDown')
     movementKeys.backward = true;
 
-  if (event.key.toLowerCase() === 'a' || event.key === 'ArrowLeft')
+  if ((event.key || '').toLowerCase() === 'a' || event.key === 'ArrowLeft')
     movementKeys.left = true;
 
-  if (event.key.toLowerCase() === 'd' || event.key === 'ArrowRight')
+  if ((event.key || '').toLowerCase() === 'd' || event.key === 'ArrowRight')
     movementKeys.right = true;
 
   if (event.key === 'Shift')
@@ -4161,16 +4224,16 @@ window.addEventListener('keydown', event => {
 });
 
 window.addEventListener('keyup', event => {
-  if (event.key.toLowerCase() === 'w' || event.key === 'ArrowUp')
+  if ((event.key || '').toLowerCase() === 'w' || event.key === 'ArrowUp')
     movementKeys.forward = false;
 
-  if (event.key.toLowerCase() === 's' || event.key === 'ArrowDown')
+  if ((event.key || '').toLowerCase() === 's' || event.key === 'ArrowDown')
     movementKeys.backward = false;
 
-  if (event.key.toLowerCase() === 'a' || event.key === 'ArrowLeft')
+  if ((event.key || '').toLowerCase() === 'a' || event.key === 'ArrowLeft')
     movementKeys.left = false;
 
-  if (event.key.toLowerCase() === 'd' || event.key === 'ArrowRight')
+  if ((event.key || '').toLowerCase() === 'd' || event.key === 'ArrowRight')
     movementKeys.right = false;
 
   if (event.key === 'Shift')
@@ -4178,12 +4241,31 @@ window.addEventListener('keyup', event => {
 });
 
 
-let visitorCharacter = null;
-let currentVisitorName = '';
+
 function animate() {
   requestAnimationFrame(animate);
 
   const elapsed = clock.getElapsedTime();
+  // SMOOTH REMOTE PLAYER MOVEMENT AND ROTATION
+remotePlayers.forEach(remote => {
+  const target = remote.userData.targetPosition;
+  const targetRotation = remote.userData.targetRotation;
+
+  if (target) {
+    remote.position.lerp(target, 0.12);
+  }
+
+  if (targetRotation !== undefined) {
+    let rotationDiff = targetRotation - remote.rotation.y;
+
+    rotationDiff = Math.atan2(
+      Math.sin(rotationDiff),
+      Math.cos(rotationDiff)
+    );
+
+    remote.rotation.y += rotationDiff * 0.12;
+  }
+});
   // ------------------------------------------
 // 3D JAPANESE POND WATER WAVES
 // ------------------------------------------
@@ -4575,24 +4657,78 @@ const onBridge =
   nextX <= 30 &&
   Math.abs(nextZ + 8) <= 3.5;
 
-if (
-  Math.abs(nextX) < 59 &&
-  Math.abs(nextZ) < 59 &&
-  (!isInsidePond(nextX, nextZ) || onBridge)
-) {
-      visitorCharacter.position.x = nextX;
-      visitorCharacter.position.z = nextZ;
-      if (onBridge) {
-  visitorCharacter.position.y = getBridgeHeight(nextX);
+const canMoveTo = (x, z) => {
+  const targetOnBridge =
+    x >= -30 &&
+    x <= 30 &&
+    Math.abs(z + 8) <= 3.5;
+
+  return (
+    Math.abs(x) < 59 &&
+    Math.abs(z) < 59 &&
+    (!isInsidePond(x, z) || targetOnBridge) &&
+    !Array.from(remotePlayers.values()).some(remote =>
+      Math.hypot(
+        x - remote.position.x,
+        z - remote.position.z
+      ) < 1.3
+    )
+  );
+};
+
+if (canMoveTo(nextX, nextZ)) {
+  visitorCharacter.position.x = nextX;
+  visitorCharacter.position.z = nextZ;
+} else {
+  if (canMoveTo(nextX, visitorCharacter.position.z)) {
+    visitorCharacter.position.x = nextX;
+  }
+
+  if (canMoveTo(visitorCharacter.position.x, nextZ)) {
+    visitorCharacter.position.z = nextZ;
+  }
+}
+
+const onBridgeNow =
+  visitorCharacter.position.x >= -30 &&
+  visitorCharacter.position.x <= 30 &&
+  Math.abs(visitorCharacter.position.z + 8) <= 3.5;
+
+if (onBridgeNow) {
+  visitorCharacter.position.y = getBridgeHeight(
+    visitorCharacter.position.x
+  );
 } else {
   visitorCharacter.position.y = 0;
 }
 
-      visitorCharacter.rotation.y = Math.atan2(
-        moveDirection.x,
-        moveDirection.z
-      );
-    }
+visitorCharacter.rotation.y = Math.atan2(
+  moveDirection.x,
+  moveDirection.z
+);
+  }
+}
+// SEND PLAYER POSITION TO OTHER VISITORS
+if (visitorCharacter && onlineChannel.state === 'joined') {
+  const now = Date.now();
+
+  if (now - lastPlayerBroadcast >= 100) {
+    lastPlayerBroadcast = now;
+    console.log('SENDING PLAYER:', currentVisitorName, visitorCharacter.position);
+
+    onlineChannel.send({
+      type: 'broadcast',
+      event: 'player-move',
+      payload: {
+        id: visitorId,
+        name: currentVisitorName,
+        gender: currentVisitorGender,
+        x: visitorCharacter.position.x,
+        y: visitorCharacter.position.y,
+        z: visitorCharacter.position.z,
+        rotation: visitorCharacter.rotation.y
+      }
+    });
   }
 }
   // UPDATE REAL-TIME POND REFLECTION
@@ -4673,8 +4809,19 @@ function enterPark() {
   }
 
  const selectedGender = document.querySelector('input[name="gender"]:checked').value;
+ currentVisitorGender = selectedGender;
 
 visitorCharacter = createVisitorCharacter(visitorName, selectedGender);
+onlineChannel.track({
+  id: visitorId,
+  name: currentVisitorName,
+  gender: currentVisitorGender,
+  x: visitorCharacter.position.x,
+  y: visitorCharacter.position.y,
+  z: visitorCharacter.position.z,
+  rotation: visitorCharacter.rotation.y,
+  online_at: new Date().toISOString()
+});
 
   welcomeScreen.style.display = 'none';
   document.getElementById('chat-panel').style.display = 'block';
