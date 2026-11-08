@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Virtual Sakura Park</title>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      overflow: hidden;
+      font-family: Arial, sans-serif;
+      background: #f9e8ed;
+    }
+
+    #park {
+      width: 100vw;
+      height: 100vh;
+    }
+
+    #title {
+      position: fixed;
+      top: 20px;
+      left: 0;
+      width: 100%;
+      text-align: center;
+      color: #80566b;
+      font-size: 24px;
+      font-weight: bold;
+      pointer-events: none;
+    }
+
+    #music-panel {
+      position: fixed;
+      right: 20px;
+      bottom: 20px;
+      width: 250px;
+      padding: 16px;
+      border: 1px solid rgba(255,255,255,0.5);
+      border-radius: 16px;
+      background: rgba(255, 248, 250, 0.88);
+      box-shadow: 0 5px 20px rgba(80, 40, 60, 0.18);
+      color: #80566b;
+      z-index: 100;
+      backdrop-filter: blur(10px);
+    }
+
+    #music-title {
+      font-size: 14px;
+      font-weight: bold;
+      margin-bottom: 12px;
+    }
+
+    .music-buttons {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    #music-panel button {
+      border: none;
+      border-radius: 20px;
+      padding: 8px 14px;
+      background: #d99bb5;
+      color: white;
+      cursor: pointer;
+      font-size: 13px;
+    }
+
+    #music-panel button:hover {
+      background: #bd7897;
+    }
+
+    #volume-control {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+
+    #volume-slider {
+      flex: 1;
+      min-width: 0;
+      accent-color: #c77f9f;
+      cursor: pointer;
+    }
+
+    @media (max-width: 600px) {
+      #music-panel {
+        right: 12px;
+        bottom: 12px;
+        width: 220px;
+      }
+    }
+
+    /* VISITOR WELCOME SCREEN */
+#welcome-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 235, 241, 0.96),
+    rgba(255, 248, 238, 0.96)
+  );
+}
+
+#welcome-box {
+  width: min(90%, 420px);
+  padding: 35px 28px;
+  text-align: center;
+  background: rgba(255,255,255,0.85);
+  border-radius: 24px;
+  box-shadow: 0 12px 40px rgba(120,70,90,0.15);
+}
+
+#welcome-box h1 {
+  color: #80566b;
+  font-size: 27px;
+}
+
+#welcome-box p {
+  color: #98788a;
+  margin-bottom: 22px;
+}
+
+#visitor-name {
+  width: 100%;
+  padding: 13px;
+  border: 1px solid #e5bfd0;
+  border-radius: 12px;
+  font-size: 16px;
+  outline: none;
+}
+
+#enter-park {
+  display: block;
+  width: 100%;
+  margin: 16px 0 0 0;
+  padding: 13px;
+  border: none;
+  border-radius: 12px;
+  background: #d99bb5;
+  color: white;
+  font-size: 16px;
+  cursor: pointer;
+  box-sizing: border-box;
+}
+/* MULTIPLAYER CHAT */
+
+#chat-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+  display: none;
+}
+
+
+#chat-messages {
+  position: absolute;
+  left: 22px;
+  bottom: 95px;
+  width: 300px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(30, 35, 45, 0.65);
+  color: white;
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  pointer-events: auto;
+}
+
+.chat-placeholder {
+  color: #f5dce8;
+}
+
+.chat-message {
+  margin-bottom: 9px;
+  overflow-wrap: anywhere;
+}
+
+.chat-username {
+  color: #ffc5df;
+  font-weight: bold;
+  margin-right: 6px;
+}
+
+#chat-composer {
+  position: absolute;
+  left: 50%;
+  bottom: 22px;
+  transform: translateX(-50%);
+  width: min(560px, 90vw);
+  display: flex;
+  gap: 10px;
+  pointer-events: auto;
+}
+
+#chat-input {
+  flex: 1;
+  min-width: 0;
+  padding: 14px 18px;
+  border: 1px solid #e5bfd0;
+  border-radius: 24px;
+  outline: none;
+  font-size: 15px;
+  background: rgba(255, 255, 255, 0.95);
+}
+
+#chat-send {
+  padding: 12px 22px;
+  border: none;
+  border-radius: 24px;
+  background: #d99bb5;
+  color: white;
+  font-size: 15px;
+  cursor: pointer;
+}
+  </style>
+</head>
+
+<body>
+  <div id="welcome-screen">
+  <div id="welcome-box">
+    <h1>🌸 Welcome to Sakura Park 🌸</h1>
+    <p>Enter your name and explore the park.</p>
+
+    <input
+  id="visitor-name"
+  type="text"
+  placeholder="Enter your name..."
+>
+
+<div id="gender-selection">
+  <p>Select your gender</p>
+
+  <div class="gender-options">
+    <label>
+      <input type="radio" name="gender" value="male" checked>
+      <span>♂ Male</span>
+    </label>
+
+    <label>
+      <input type="radio" name="gender" value="female">
+      <span>♀ Female</span>
+    </label>
+  </div>
+</div>
+
+    <button id="enter-park">Enter the Park 🌸</button>
+  </div>
+</div>
+  <div id="park"></div>
+  <div id="title">🌸 Virtual Sakura Park 🌸</div>
+
+  <div id="music-panel">
+    <div id="music-title">🎵 Zen Garden</div>
+
+    <div class="music-buttons">
+      <button id="music-toggle">▶ 播放</button>
+      <button id="music-mute">静音</button>
+    </div>
+
+    <div id="volume-control">
+      <span>音量</span>
+      <input
+        id="volume-slider"
+        type="range"
+        min="0"
+        max="100"
+        value="35"
+      >
+      <span id="volume-value">35%</span>
+    </div>
+  </div>
+
+  <!-- MULTIPLAYER CHAT -->
+<div id="chat-panel">
+
+  <!-- Chat messages: bottom left -->
+  <div id="chat-messages">
+    <div class="chat-placeholder">Welcome to Sakura Park! 🌸</div>
+  </div>
+
+  <!-- Message input: bottom center -->
+  <div id="chat-composer">
+    <input
+      id="chat-input"
+      type="text"
+      placeholder="Type your message..."
+      maxlength="500"
+    >
+    <button id="chat-send">Send ➤</button>
+  </div>
+
+</div>
+  <script type="module" src="./main.js"></script>
+</body>
+</html>
